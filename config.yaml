@@ -1,0 +1,15 @@
+app:
+ host: 192.168.43.148
+ port: 8080
+ video: video/
+ img: img/
+
+mysql:
+ host: 127.0.0.1
+ port: 3306
+ username: root
+ password: 123456
+ database: 5th_tiktok
+
+snowflake:
+ machineID: 1
