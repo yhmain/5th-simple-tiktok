@@ -40,23 +40,43 @@ func GetRedisClient() (*redis.Client, error) {
 	return redisDB, nil
 }
 
-// 供外层调用：清空redis缓存
-func ClearRedis() {
-	redisDB.FlushAll(ctx) // 此处清空缓存
-}
-
 // 解析Redis的所有key，保存到Like结构体
 func ParseRedisKeys() ([]model.Like, error) {
-	// 保存到数据库为批量操作
 	// 假设该台redis服务器所有Key都是uid:vid形式
-	ks, err := redisDB.Keys(ctx, "Fav:*").Result() // 获取Redis的所有key
-	if err != nil {
-		fmt.Println("获取Redis的Keys出错: ", err)
-		return nil, err
+	var pattern = "Fav:"       // 模糊查询的前缀
+	var cursor uint64          // 定义游标
+	var batchSize = int64(100) // 定义每次获取多少key
+	var likes = []model.Like{} // 最终返回的结果
+	for {
+		var err error
+		// 扫描所有key，每次100条，比Keys方法有优势，因为不会阻塞redis主线程
+		ks, cursor, err := redisDB.Scan(ctx, cursor, pattern+"*", batchSize).Result()
+		if err != nil {
+			fmt.Println("获取Redis的Keys出错: ", err)
+			return nil, err
+		}
+		res := ParseKeysByPattern(ks, pattern) // 解析key为  uid:vid
+		likes = append(likes, res...)          // 合并到结果集中
+		// 考虑在此时, 删除这部分key
+		for i := 0; i < len(ks); i++ {
+			_, err = redisDB.Del(ctx, ks[i]).Result()
+			if err != nil {
+				fmt.Println("删除Redis的Keys出错: ", err)
+				return nil, err
+			}
+		}
+		if cursor == 0 {
+			break
+		}
 	}
+	return likes, nil
+}
+
+// 解析 点赞类型的Key
+func ParseKeysByPattern(ks []string, pat string) []model.Like {
 	likes := make([]model.Like, 0)
 	for _, k := range ks {
-		realID := k[4:]
+		realID := k[len(pat):]           // 因为 fav:  长度是4
 		ss := strings.Split(realID, ":") // uid:vid
 		uid, _ := strconv.ParseInt(ss[0], 10, 64)
 		vid, _ := strconv.ParseInt(ss[1], 10, 64)
@@ -73,7 +93,7 @@ func ParseRedisKeys() ([]model.Like, error) {
 		}
 		likes = append(likes, lk)
 	}
-	return likes, nil
+	return likes
 }
 
 // 点赞 && 取消点赞 功能

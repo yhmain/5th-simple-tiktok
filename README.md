@@ -43,3 +43,6 @@ https://blog.csdn.net/shachao888/article/details/117129285
 Corn定时任务的使用
 https://www.imooc.com/article/46466
 http://www.zyiz.net/tech/detail-141215.html
+
+Redis批量模糊删除 Key
+https://blog.csdn.net/qianyer/article/details/106383423

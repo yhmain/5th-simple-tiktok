@@ -56,7 +56,7 @@ func JobSaveRedis() {
 
 // 将Redis数据保存到MySQL
 func SaveRedisToMySQL() {
-	likes, err := middleware.ParseRedisKeys()
+	likes, err := middleware.ParseRedisKeys() // 调用redis解析里面的keys
 	if err != nil {
 		fmt.Println("解析Redis的Keys出现异常：", err)
 		return
@@ -72,8 +72,8 @@ func SaveRedisToMySQL() {
 		fmt.Println("批量更新点赞数据出错：", err)
 		return
 	}
-	// 之后清空Redis缓存
-	middleware.ClearRedis()
+	// 之后需要考虑 删除Redis缓存，避免重复添加数据，这有可能导致 点赞数增多
+	// 实际上在 解析redis数据时，便做删除
 }
 
 //用户喜欢列表函数，路由
