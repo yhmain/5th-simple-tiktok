@@ -1,4 +1,4 @@
-package dao
+package middleware
 
 import (
 	"fmt"
@@ -9,15 +9,15 @@ import (
 	"gorm.io/gorm"
 )
 
-var MyDB *gorm.DB //全局变量，数据库连接
+var myDB *gorm.DB //全局变量，数据库连接
 
 func init() {
 	fmt.Println("conn.go ... init")
-	params := config.ProjectConfig.MySQL
+	params := config.GetConfig().MySQL
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
 		params.Username, params.Password, params.Host, params.Port, params.Database)
 	var err error
-	MyDB, err = gorm.Open(mysql.New(mysql.Config{
+	myDB, err = gorm.Open(mysql.New(mysql.Config{
 		DSN:                       dsn,   // DSN data source name
 		DefaultStringSize:         256,   // string 类型字段的默认长度
 		DisableDatetimePrecision:  true,  // 禁用 datetime 精度，MySQL 5.6 之前的数据库不支持
@@ -33,5 +33,9 @@ func init() {
 	}
 	fmt.Println("conn.go: 数据库连接成功")
 	// 创建表的同时进行表属性配置  数据库迁移，只增不减
-	MyDB.Set("gorm:table_options", "ENGINE=InnoDB").AutoMigrate(&model.User{}, &model.Video{})
+	myDB.Set("gorm:table_options", "ENGINE=InnoDB").AutoMigrate(&model.User{}, &model.Video{}, &model.Like{})
+}
+
+func GetMySQLClient() *gorm.DB {
+	return myDB
 }

@@ -14,6 +14,7 @@ type Config struct {
 	App       *App       `yaml:"app"`
 	MySQL     *Mysql     `yaml:"mysql"`
 	Snowflake *SnowFlake `yaml:"snowflake"`
+	Redis     *Redis     `yaml:"redis"`
 }
 
 type App struct {
@@ -35,10 +36,19 @@ type SnowFlake struct { // 雪花算法
 	MachineID int64 `yaml:"machineID"`
 }
 
-var ProjectConfig *Config // 声明成全局变量
+type Redis struct {
+	Host     string `yaml:"host"`
+	Port     string `yaml:"port"`
+	Password string `yaml:"password"`
+	Database string `yaml:"database"`
+}
 
+var pcfg *Config // 声明成全局变量  ProjectConfig
+
+// 即使被import多次，init函数只执行一次
 // 使用Viper解析yarm文件
-func InitConfigByViper() {
+func init() {
+	fmt.Println("config.go ... init")
 	viper.SetConfigType("yaml")   // 配置文件的格式
 	viper.AddConfigPath(".")      // 第一个搜索路径
 	viper.AddConfigPath("../")    // 第二个搜索路径
@@ -47,16 +57,14 @@ func InitConfigByViper() {
 	if err := viper.ReadInConfig(); err != nil { // 先读取配置文件，看是否正常
 		fmt.Println(err.Error())
 	}
-	if err := viper.Unmarshal(&ProjectConfig); err != nil { // 解析到结构体
+	if err := viper.Unmarshal(&pcfg); err != nil { // 解析到结构体
 		fmt.Println(err.Error())
 	}
 	// 查看一下解析得到的内容
 	// fmt.Printf("config: %#v\n", ProjectConfig)
+	fmt.Println("config.go ... 初始化成功！")
 }
 
-// 即使被import多次，init函数只执行一次
-func init() {
-	fmt.Println("config.go ... init")
-	InitConfigByViper()
-	fmt.Println("config.go ... 初始化成功！")
+func GetConfig() *Config {
+	return pcfg
 }

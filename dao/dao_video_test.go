@@ -1,6 +1,7 @@
 package dao
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/yhmain/5th-simple-tiktok/model"
@@ -14,4 +15,9 @@ func TestInsertNewVideo(t *testing.T) {
 		UserID:  2,
 	}
 	InsertNewVideo(&video)
+}
+
+func TestGetVideoByIDs(t *testing.T) {
+	vs := GetVideoByIDs([]int64{int64(1618519735576563712), int64(1618885198131236864)})
+	fmt.Println(vs)
 }

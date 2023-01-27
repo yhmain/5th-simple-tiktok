@@ -13,7 +13,7 @@ var userIDGen *snowflake.Node
 // 先进行初始化
 func init() {
 	fmt.Println("snowflake.go ... init")
-	params := config.ProjectConfig.Snowflake
+	params := config.GetConfig().Snowflake
 	node, err := snowflake.NewNode(params.MachineID)
 	if err != nil {
 		fmt.Println("userIDGen: ", node)

@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/yhmain/5th-simple-tiktok/config"
 	"github.com/yhmain/5th-simple-tiktok/dao"
+	"github.com/yhmain/5th-simple-tiktok/middleware"
 	"github.com/yhmain/5th-simple-tiktok/model"
 	"github.com/yhmain/5th-simple-tiktok/util"
 )
@@ -18,14 +19,35 @@ import (
 //  /feed接口的响应体
 type FeedResponse struct {
 	util.Response               //标准响应体
-	VideoList     []model.Video `json:"video_list"` //视频列表
-	NextTime      int64         `json:"next_time"`  //本次返回的视频中，发布最早的时间，作为下次请求的Latest_time
+	VideoList     []model.Video `json:"video_list"`          //视频列表
+	NextTime      int64         `json:"next_time,omitempty"` //本次返回的视频中，发布最早的时间，作为下次请求的Latest_time
 }
 
 // 视频列表的响应体
 type VideoListResponse struct {
 	util.Response
 	VideoList []model.Video `json:"video_list"`
+}
+
+// 如果当前是登录状态，则需要判断是否喜欢点赞了，即更新点赞信息
+func updateVideoLike(userID int64, videos []model.Video) {
+	for i := 0; i < len(videos); i++ {
+		videos[i].IsFavorite = false //首先默认是false
+	}
+	for i := 0; i < len(videos); i++ {
+		likeID := fmt.Sprintf("%d:%d", userID, videos[i].Id)
+		//  先查询 redis里面是否有数据，若无再查询Mysql
+		val, err := middleware.GetKey(likeID)
+		if err != nil { // 未命中
+			like := dao.GetLikeByID(likeID) // 查询 like表
+			videos[i].IsFavorite = like.IsFavorite
+		} else {
+			if val == "1" {
+				videos[i].IsFavorite = true //如果为1表示点赞了
+			}
+		}
+
+	}
 }
 
 //视频流接口，路由
@@ -39,14 +61,29 @@ func Feed(c *gin.Context) {
 			NextTime:  time.Now().Unix(),
 		})
 	} else {
-		if latest_time == 0 { //空字符串会转化为0，则表示取当前时间的时间戳
+		if t == "" { //空字符串会转化为0，则表示取当前时间的时间戳
 			latest_time = time.Now().Unix()
 		}
 		//获取视频数据
 		var videos = dao.GetVideosByTime(latest_time)
+		for i := 0; i < len(videos); i++ {
+			videos[i].IsFavorite = false //首先默认是false
+		}
 		var nextTime = time.Now().Unix()
 		if len(videos) >= 1 { // 注意：返回的视频列表可能为空
 			nextTime = videos[len(videos)-1].CreatedTime
+			token := c.Query("token") // 如果当前是用户登录状态，则token存在，需要查询 当前用户是否喜欢该视频
+			if token != "" {
+				_, claims, err := middleware.ParseToken(token)
+				if err != nil {
+					fmt.Println("Token解析出错: ", err)
+					c.JSON(http.StatusOK, util.ParseTokenErr) //token解析失败
+					return
+				}
+				uid := claims.UserID         // 得到了当前用户ID
+				updateVideoLike(uid, videos) // 更新点赞信息
+			}
+
 		}
 		c.JSON(http.StatusOK, FeedResponse{
 			Response:  util.Success, //成功
@@ -58,7 +95,7 @@ func Feed(c *gin.Context) {
 
 // 投稿接口，用户发布视频，路由
 func Publish(c *gin.Context) {
-	usertoken := c.MustGet("usertoken").(util.UserToken) //经过jwt鉴权后解析出的usertoekn
+	usertoken := c.MustGet("usertoken").(middleware.UserToken) //经过jwt鉴权后解析出的usertoekn
 
 	// 获取视频流数据
 	file, err := c.FormFile("data")
@@ -91,7 +128,7 @@ func Publish(c *gin.Context) {
 	createdTime := time.Now().Unix() //获取当前时间戳
 	userId := usertoken.UserID       //发布视频的用户ID
 	// 构造保存到数据库的前缀播放路径
-	params := config.ProjectConfig.App
+	params := config.GetConfig().App
 	videoPrefix := fmt.Sprintf("http://%s:%s/static/%s/", params.Host, params.Port, params.Video)
 	imgPrefix := fmt.Sprintf("http://%s:%s/static/%s/", params.Host, params.Port, params.Img)
 	playUrl = videoPrefix + playUrl
@@ -110,12 +147,13 @@ func Publish(c *gin.Context) {
 
 // 发布列表的接口，路由
 func PublishList(c *gin.Context) {
-	// usertoken := c.MustGet("usertoken").(UserToken)
-	user_id := c.Query("user_id")
-	uid, _ := strconv.ParseInt(user_id, 10, 64)
+	usertoken := c.MustGet("usertoken").(middleware.UserToken)
+	uid := usertoken.UserID
 
 	//调用service 获取该用户发布的视频列表
 	var videos = dao.GetVideosByUserID(uid)
+	// 更新点赞信息
+	updateVideoLike(uid, videos)
 
 	//返回视频列表和状态码
 	c.JSON(http.StatusOK, VideoListResponse{

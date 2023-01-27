@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/yhmain/5th-simple-tiktok/dao"
+	"github.com/yhmain/5th-simple-tiktok/middleware"
 	"github.com/yhmain/5th-simple-tiktok/model"
 	"github.com/yhmain/5th-simple-tiktok/util"
 )
@@ -61,7 +62,7 @@ func Register(c *gin.Context) {
 			return
 		}
 		//生成新用户的鉴权token
-		token, err := util.GenToken(&util.UserToken{
+		token, err := middleware.GenToken(&middleware.UserToken{
 			UserID:   newUserID,
 			Name:     username,
 			Password: password,
@@ -90,7 +91,7 @@ func Login(c *gin.Context) {
 	//检测 用户名和密码是否正确
 	if user := dao.GetUserByNamePwd(username, password); user.Id != 0 {
 		//校验成功后，生成用户鉴权token
-		token, err := util.GenToken(&util.UserToken{UserID: user.Id, Name: username, Password: password})
+		token, err := middleware.GenToken(&middleware.UserToken{UserID: user.Id, Name: username, Password: password})
 		if err != nil {
 			//若生成token出错，则返回错误代码
 			c.JSON(http.StatusOK, UserLoginResponse{
@@ -120,7 +121,7 @@ func Login(c *gin.Context) {
 //输入为用户id和鉴权token，获取该用户信息
 //注意：有中间件已处理
 func UserInfo(c *gin.Context) {
-	usertoken := c.MustGet("usertoken").(util.UserToken)
+	usertoken := c.MustGet("usertoken").(middleware.UserToken)
 
 	//按照id查找用户信息
 	user := dao.GetUserByID(usertoken.UserID)

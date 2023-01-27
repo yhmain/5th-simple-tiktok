@@ -1,4 +1,4 @@
-package util
+package middleware
 
 import (
 	"fmt"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/yhmain/5th-simple-tiktok/util"
 )
 
 //NOTE: 以下为基于jwt-go实现的token权限认证
@@ -53,23 +54,23 @@ func ParseToken(tokenString string) (*jwt.Token, *UserClaims, error) {
 }
 
 // 自定义函数：JWTAuthUser 基于JWT认证的中间件
-func JWTAuthGet() func(c *gin.Context) {
+func JWTAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		//获取token，并解析
-		token := c.Query("token")
+		token := GetParamPostOrGet(c, "token")
 		// fmt.Println("获取到的Token: ", token)
 		_, claims, err := ParseToken(token)
 		if err != nil {
 			fmt.Println("Token解析出错: ", err)
-			c.JSON(http.StatusOK, ParseTokenErr) //token解析失败
+			c.JSON(http.StatusOK, util.ParseTokenErr) //token解析失败
 			c.Abort()
 			return
 		}
 		// 获取user_id，并与token解析出来的进行对比
 		// 若存在user_id，则需要进行鉴权
-		paramID := c.Query("user_id")
+		paramID := GetParamPostOrGet(c, "user_id")
 		if paramID != "" && strconv.FormatInt(claims.UserID, 10) != paramID {
-			c.JSON(http.StatusOK, WrongTokenErr) //token校验失败
+			c.JSON(http.StatusOK, util.WrongTokenErr) //token校验失败
 			c.Abort()
 			return
 		}
@@ -78,19 +79,33 @@ func JWTAuthGet() func(c *gin.Context) {
 	}
 }
 
-func JWTAuthPost() func(c *gin.Context) {
-	return func(c *gin.Context) {
-		//获取token，并解析
-		token := c.PostForm("token")
-		// fmt.Println("获取到的Token: ", token)
-		_, claims, err := ParseToken(token)
-		if err != nil {
-			fmt.Println("Token解析出错: ", err)
-			c.JSON(http.StatusOK, ParseTokenErr) //token解析失败
-			c.Abort()
-			return
-		}
-		c.Set("usertoken", claims.UserToken)
-		c.Next() // 执行后续的处理函数
+// 发现post和get有时候与给的不一致
+func GetParamPostOrGet(c *gin.Context, param string) string {
+	token := ""
+	t1 := c.Query(param)
+	t2 := c.PostForm(param)
+	if t1 != "" {
+		token = t1
 	}
+	if t2 != "" {
+		token = t2
+	}
+	return token
 }
+
+// func JWTAuthPost() func(c *gin.Context) {
+// 	return func(c *gin.Context) {
+// 		//获取token，并解析
+// 		token := c.PostForm("token")
+// 		fmt.Println("获取到的Token: ", token)
+// 		_, claims, err := ParseToken(token)
+// 		if err != nil {
+// 			fmt.Println("Token解析出错: ", err)
+// 			c.JSON(http.StatusOK, ParseTokenErr) //token解析失败
+// 			c.Abort()
+// 			return
+// 		}
+// 		c.Set("usertoken", claims.UserToken)
+// 		c.Next() // 执行后续的处理函数
+// 	}
+// }

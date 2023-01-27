@@ -30,8 +30,16 @@ test 目录下为不同场景的功能测试case，可用于验证功能实现�
 测试数据写在 demo_data.go 中，用于列表接口的 mock 测试
 
 ### 试图拆分成微服务
-用户模块：
-    - 用户注册
-    - 用户登录
-    - 用户信息
-    
+用户模块：  
+    - 用户注册  
+    - 用户登录  
+    - 用户信息  
+
+点赞，评论，收藏功能的实现思路：  
+https://www.cnblogs.com/xiaoyantongxue/p/15758271.html  
+https://blog.csdn.net/zhizhengguan/article/details/87264601
+https://blog.csdn.net/shachao888/article/details/117129285
+
+Corn定时任务的使用
+https://www.imooc.com/article/46466
+http://www.zyiz.net/tech/detail-141215.html

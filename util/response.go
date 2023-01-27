@@ -43,6 +43,13 @@ var (
 	// ffmpeg截取视频帧遇到的错误
 	ReadFrameErr = NewResponse(31001, "ffmpeg解析视频失败！")
 	DecodeBufErr = NewResponse(31002, "imaging解析数据流失败！")
+
+	// 赞操作遇到的错误
+	FavActionErr = NewResponse(40001, "赞操作失败！")
+
+	// Redis操作遇到的错误
+	RedisConnErr = NewResponse(50001, "Redis连接失败！")
+	RedisKeysErr = NewResponse(50002, "Redis的Keys命令失败！")
 )
 
 //返回一个错误信息的字符串

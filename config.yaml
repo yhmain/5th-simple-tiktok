@@ -13,3 +13,9 @@ mysql:
 
 snowflake:
  machineID: 1
+
+redis:
+ host: 192.168.43.148
+ port: 6379
+ password: ""
+ database: 0

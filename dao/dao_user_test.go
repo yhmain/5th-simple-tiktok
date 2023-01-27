@@ -7,11 +7,6 @@ import (
 	"github.com/yhmain/5th-simple-tiktok/model"
 )
 
-// func TestMain(m *testing.M) {
-// 	params := config.ProjectConfig.MySQL // 需要先加载配置文件
-// 	m.Run()
-// }
-
 //插入新用户
 func TestInserUser(t *testing.T) {
 	err := InsertUser(&model.User{Id: 1001, UserName: "user1001", Password: "7777909"})
