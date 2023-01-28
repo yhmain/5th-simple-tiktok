@@ -13,9 +13,9 @@ func TestGetRedisClient(t *testing.T) { // 测试ping，获取redis连接
 	assert.Equal(t, expectedResult, err)
 }
 
-func TestParseRedisKeys(t *testing.T) {
+func TestGetRedisLike(t *testing.T) {
 	UpdateRedisLike("Fav:2:1618519735576563712", "1618519735576563712", "1")
-	likes, err := ParseRedisKeys()
+	likes, err := GetRedisLike()
 	assert.Equal(t, nil, err)
 	expectedResult := []model.Like{
 		{

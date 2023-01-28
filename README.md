@@ -37,12 +37,21 @@ test 目录下为不同场景的功能测试case，可用于验证功能实现�
 
 点赞，评论，收藏功能的实现思路：  
 https://www.cnblogs.com/xiaoyantongxue/p/15758271.html  
-https://blog.csdn.net/zhizhengguan/article/details/87264601
-https://blog.csdn.net/shachao888/article/details/117129285
+https://blog.csdn.net/zhizhengguan/article/details/87264601  
+https://blog.csdn.net/shachao888/article/details/117129285  
 
-Corn定时任务的使用
-https://www.imooc.com/article/46466
-http://www.zyiz.net/tech/detail-141215.html
+Corn定时任务的使用  
+https://www.imooc.com/article/46466  
+http://www.zyiz.net/tech/detail-141215.html  
 
-Redis批量模糊删除 Key
-https://blog.csdn.net/qianyer/article/details/106383423
+Go操作Redis
+https://www.cnblogs.com/itbsl/p/14198111.html
+
+Redis批量模糊删除 Key  
+https://blog.csdn.net/qianyer/article/details/106383423   
+
+https://blog.csdn.net/qq171563857/article/details/107406409  
+在缓存评论内容的时候只缓存不变的内容,比如评论ID,评论时间,评论内容  
+点赞数和回复数都另外用Redis计数器处理,读取缓存时同时读取计数器缓存  
+
+        

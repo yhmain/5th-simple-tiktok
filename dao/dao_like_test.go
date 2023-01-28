@@ -17,7 +17,7 @@ func TestUpsetLikes(t *testing.T) {
 			IsFavorite: true,
 		},
 	}
-	err := UpsetLikes(&likes)
+	err := SaveLikes(likes, nil)
 	fmt.Println(err)
 	assert.Equal(t, nil, err)
 }

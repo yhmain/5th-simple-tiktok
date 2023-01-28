@@ -47,9 +47,14 @@ var (
 	// 赞操作遇到的错误
 	FavActionErr = NewResponse(40001, "赞操作失败！")
 
+	// 评论操作遇到的错误
+	ComAddErr  = NewResponse(50001, "评论数据插入失败！")
+	ComDelErr  = NewResponse(50002, "评论数据删除失败！")
+	ComListErr = NewResponse(50003, "评论列表查询失败！")
+
 	// Redis操作遇到的错误
-	RedisConnErr = NewResponse(50001, "Redis连接失败！")
-	RedisKeysErr = NewResponse(50002, "Redis的Keys命令失败！")
+	RedisConnErr = NewResponse(90001, "Redis连接失败！")
+	RedisKeysErr = NewResponse(90002, "Redis的Keys命令失败！")
 )
 
 //返回一个错误信息的字符串

@@ -92,20 +92,3 @@ func GetParamPostOrGet(c *gin.Context, param string) string {
 	}
 	return token
 }
-
-// func JWTAuthPost() func(c *gin.Context) {
-// 	return func(c *gin.Context) {
-// 		//获取token，并解析
-// 		token := c.PostForm("token")
-// 		fmt.Println("获取到的Token: ", token)
-// 		_, claims, err := ParseToken(token)
-// 		if err != nil {
-// 			fmt.Println("Token解析出错: ", err)
-// 			c.JSON(http.StatusOK, ParseTokenErr) //token解析失败
-// 			c.Abort()
-// 			return
-// 		}
-// 		c.Set("usertoken", claims.UserToken)
-// 		c.Next() // 执行后续的处理函数
-// 	}
-// }

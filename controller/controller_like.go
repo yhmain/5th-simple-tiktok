@@ -29,9 +29,9 @@ func FavoriteAction(c *gin.Context) {
 	usertoken := c.MustGet("usertoken").(middleware.UserToken)
 	video_id := middleware.GetParamPostOrGet(c, "video_id")
 	action_type := c.Query("action_type")
-	redisKey := fmt.Sprintf("Fav:%d:%s", usertoken.UserID, video_id)      // 加上前缀Fav:，取用户id，作为redis的key
-	_, err := middleware.UpdateRedisLike(redisKey, video_id, action_type) // 更新Redis
-	if err != nil {                                                       // 赞操作失败
+	redisKey := fmt.Sprintf("Fav:%d:%s", usertoken.UserID, video_id)   // 加上前缀Fav:，取用户id，作为redis的key
+	err := middleware.UpdateRedisLike(redisKey, video_id, action_type) // 更新Redis
+	if err != nil {                                                    // 赞操作失败
 		fmt.Println(err)
 		c.JSON(http.StatusOK, util.FavActionErr)
 		return
@@ -56,24 +56,17 @@ func JobSaveRedis() {
 
 // 将Redis数据保存到MySQL
 func SaveRedisToMySQL() {
-	likes, err := middleware.ParseRedisKeys() // 调用redis解析里面的keys
-	if err != nil {
-		fmt.Println("解析Redis的Keys出现异常：", err)
-		return
-	}
-	// 调用dao层保存到数据库
-	if len(likes) < 1 {
-		// fmt.Println("空点赞数据，无须保存.")
-		return
-	}
-	// 赞数据插入到数据库
-	err = dao.UpsetLikes(&likes)
-	if err != nil {
+	likes, likeCount := middleware.GetRedisLike()           // 调用redis解析里面的keys
+	if err := dao.SaveLikes(likes, likeCount); err != nil { // 赞数据插入到数据库
 		fmt.Println("批量更新点赞数据出错：", err)
 		return
 	}
-	// 之后需要考虑 删除Redis缓存，避免重复添加数据，这有可能导致 点赞数增多
-	// 实际上在 解析redis数据时，便做删除
+	// 接下来是 评论内容和评论数量，更新到数据库
+	commentAdd, commendDel, commentCnt := middleware.GetRedisComment()           // 调用redis解析里面的keys
+	if err := dao.SaveComments(commentAdd, commendDel, commentCnt); err != nil { // 评论数据插入到数据库
+		fmt.Println("批量更新评论数据出错：", err)
+		return
+	}
 }
 
 //用户喜欢列表函数，路由
@@ -82,7 +75,7 @@ func FavoriteList(c *gin.Context) {
 	usertoken := c.MustGet("usertoken").(middleware.UserToken)
 	// 查询之前，将Redis数据手段更新到Mysql
 	SaveRedisToMySQL()
-	// 此后，直接查询Redis数据
+	// 再查询MySQL数据
 	likes := dao.GetUserLike(usertoken.UserID) // 获取到了视频ID
 	vids := make([]int64, len(likes))          // 提取出来存在切片里面
 	for i := range likes {

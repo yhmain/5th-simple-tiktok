@@ -29,24 +29,30 @@ type VideoListResponse struct {
 	VideoList []model.Video `json:"video_list"`
 }
 
-// 如果当前是登录状态，则需要判断是否喜欢点赞了，即更新点赞信息
-func updateVideoLike(userID int64, videos []model.Video) {
+// 如果当前是登录状态，则更新点赞信息（是否点赞和点赞数量）、评论信息（评论内容和评论数量）
+// 还有是因为要取得redis最新的数据，点赞数量和评论数量
+func updateVideoInfo(userID int64, videos []model.Video) {
 	for i := 0; i < len(videos); i++ {
-		videos[i].IsFavorite = false //首先默认是false
-	}
-	for i := 0; i < len(videos); i++ {
+		// 更新点赞状态，查询redis
 		likeID := fmt.Sprintf("%d:%d", userID, videos[i].Id)
-		//  先查询 redis里面是否有数据，若无再查询Mysql
-		val, err := middleware.GetKey(likeID)
-		if err != nil { // 未命中
-			like := dao.GetLikeByID(likeID) // 查询 like表
-			videos[i].IsFavorite = like.IsFavorite
-		} else {
+		if val, err := middleware.GetKey(likeID); err != nil { //  若redis里面有数据，则以之为准
 			if val == "1" {
 				videos[i].IsFavorite = true //如果为1表示点赞了
 			}
 		}
-
+		// 更新视频的点赞数量，查询redis计数器
+		video_id := strconv.FormatInt(videos[i].Id, 10)
+		vidKey := "FavCnt:" + video_id                         // 构造redis key
+		if val, err := middleware.GetKey(vidKey); err != nil { //  若redis里面有数据，则以之为准
+			cnt, _ := strconv.ParseInt(val, 10, 64)
+			videos[i].FavoriteCount = cnt // 最终更新到 videos中
+		}
+		// 更新视频的评论数量，查询redis计数器
+		comCntKey := "ComCnt:" + video_id
+		if val, err := middleware.GetKey(comCntKey); err != nil { //  若redis里面有数据，则以之为准
+			cnt, _ := strconv.ParseInt(val, 10, 64)
+			videos[i].CommentCount = cnt // 最终更新到 videos中
+		}
 	}
 }
 
@@ -66,9 +72,6 @@ func Feed(c *gin.Context) {
 		}
 		//获取视频数据
 		var videos = dao.GetVideosByTime(latest_time)
-		for i := 0; i < len(videos); i++ {
-			videos[i].IsFavorite = false //首先默认是false
-		}
 		var nextTime = time.Now().Unix()
 		if len(videos) >= 1 { // 注意：返回的视频列表可能为空
 			nextTime = videos[len(videos)-1].CreatedTime
@@ -77,11 +80,22 @@ func Feed(c *gin.Context) {
 				_, claims, err := middleware.ParseToken(token)
 				if err != nil {
 					fmt.Println("Token解析出错: ", err)
-					c.JSON(http.StatusOK, util.ParseTokenErr) //token解析失败
+					c.JSON(http.StatusOK, FeedResponse{
+						Response:  util.ParseTokenErr, //token解析失败
+						VideoList: []model.Video{},
+						NextTime:  time.Now().Unix(), // 当前时间
+					})
 					return
 				}
-				uid := claims.UserID         // 得到了当前用户ID
-				updateVideoLike(uid, videos) // 更新点赞信息
+				uid := claims.UserID // 得到了当前用户ID
+				fmt.Println(videos)
+				updateVideoInfo(uid, videos) // 更新点赞信息和评论数量信息
+			} else {
+				// 如果没有用户登录，则点赞状态都为false
+				for i := 0; i < len(videos); i++ {
+					videos[i].IsFavorite = false //首先默认是false
+					fmt.Println(videos[i])
+				}
 			}
 
 		}
@@ -153,7 +167,7 @@ func PublishList(c *gin.Context) {
 	//调用service 获取该用户发布的视频列表
 	var videos = dao.GetVideosByUserID(uid)
 	// 更新点赞信息
-	updateVideoLike(uid, videos)
+	updateVideoInfo(uid, videos)
 
 	//返回视频列表和状态码
 	c.JSON(http.StatusOK, VideoListResponse{
