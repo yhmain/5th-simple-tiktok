@@ -58,7 +58,6 @@ func JWTAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		//获取token，并解析
 		token := GetParamPostOrGet(c, "token")
-		// fmt.Println("获取到的Token: ", token)
 		_, claims, err := ParseToken(token)
 		if err != nil {
 			fmt.Println("Token解析出错: ", err)

@@ -33,7 +33,7 @@ func init() {
 	}
 	fmt.Println("conn.go: 数据库连接成功")
 	// 创建表的同时进行表属性配置  数据库迁移，只增不减
-	err = myDB.Set("gorm:table_options", "ENGINE=InnoDB").AutoMigrate(&model.User{}, &model.Video{}, &model.Like{}, &model.Comment{})
+	err = myDB.Set("gorm:table_options", "ENGINE=InnoDB").AutoMigrate(&model.User{}, &model.Video{}, &model.Like{}, &model.Comment{}, &model.Follow{}, &model.Friend{}, &model.Message{})
 	if err != nil {
 		fmt.Println("数据库迁移失败！", err)
 	}

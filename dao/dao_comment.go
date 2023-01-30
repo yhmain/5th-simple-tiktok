@@ -26,12 +26,13 @@ func SaveComments(comAdd []model.Comment, comDel []model.Comment, comCount map[i
 	// 事务
 	err := db.Transaction(func(tx *gorm.DB) error {
 		// 添加新评论
-		if len(comAdd) < 1 {
-			return nil
+		if len(comAdd) > 0 {
+			db.Create(&comAdd)
 		}
-		db.Create(&comAdd)
 		// 删除本该被删除的评论
-		db.Delete(&comDel)
+		if len(comDel) > 0 {
+			db.Delete(&comDel)
+		}
 		// 更新视频的评论数量
 		for k, v := range comCount {
 			err := UpdateVideoComment(k, v)

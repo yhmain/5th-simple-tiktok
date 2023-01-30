@@ -44,8 +44,13 @@ Corn定时任务的使用
 https://www.imooc.com/article/46466  
 http://www.zyiz.net/tech/detail-141215.html  
 
-Go操作Redis
-https://www.cnblogs.com/itbsl/p/14198111.html
+Go操作Redis  
+https://www.cnblogs.com/itbsl/p/14198111.html  
+  
+go-redis操作lua脚本  
+https://redis.uptrace.dev/guide/lua-scripting.html#redis-script  
+https://www.runoob.com/lua/lua-decision-making.html Lua语法 
+https://juejin.cn/post/7024307688196538375 例子 
 
 Redis批量模糊删除 Key  
 https://blog.csdn.net/qianyer/article/details/106383423   
@@ -54,4 +59,5 @@ https://blog.csdn.net/qq171563857/article/details/107406409
 在缓存评论内容的时候只缓存不变的内容,比如评论ID,评论时间,评论内容  
 点赞数和回复数都另外用Redis计数器处理,读取缓存时同时读取计数器缓存  
 
-        
+MySQL和Redis数据一致性的解决思路
+https://cloud.tencent.com/developer/article/1917325  

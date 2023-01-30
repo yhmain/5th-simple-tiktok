@@ -52,6 +52,18 @@ var (
 	ComDelErr  = NewResponse(50002, "评论数据删除失败！")
 	ComListErr = NewResponse(50003, "评论列表查询失败！")
 
+	// 关注操作遇到的错误
+	FollowActionErr = NewResponse(60001, "关注操作出现异常！")
+	FollowListErr   = NewResponse(60002, "关注列表出现异常！")
+	FollowerListErr = NewResponse(60003, "粉丝列表出现异常！")
+
+	// 好友操作遇到的错误
+	FriendListErr = NewResponse(70001, "好友列表出现异常！")
+
+	// 消息操作遇到的错误
+	MessageActionErr = NewResponse(80001, "发送消息出现异常！")
+	MessageListErr   = NewResponse(80002, "消息列表出现异常！")
+
 	// Redis操作遇到的错误
 	RedisConnErr = NewResponse(90001, "Redis连接失败！")
 	RedisKeysErr = NewResponse(90002, "Redis的Keys命令失败！")

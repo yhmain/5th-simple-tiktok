@@ -30,8 +30,6 @@ func CommentAction(c *gin.Context) {
 	usertoken := c.MustGet("usertoken").(middleware.UserToken)
 	video_id := middleware.GetParamPostOrGet(c, "video_id")
 	vID, _ := strconv.ParseInt(video_id, 10, 64) // 字符串转化成int64
-	video := dao.GetVideoByID(vID)               // 去数据库查询 视频结构体
-	comCount := video.CommentCount               // 获取其评论数
 	action_type := c.Query("action_type")
 	if action_type == "1" {
 		// 发布评论
@@ -44,8 +42,13 @@ func CommentAction(c *gin.Context) {
 			UserID:      usertoken.UserID,
 			VideoID:     vID,
 		}
+		// 知道了视频的ID，先去查看redis里面是否存了它的评论数，若无则去查mysql数据库
+		if _, err := middleware.GetKey("ComCnt:" + video_id); err != nil {
+			video := dao.GetVideoByID(vID)                                                   // 去数据库查询 视频结构体
+			middleware.SetKey("ComCnt:"+video_id, strconv.FormatInt(video.CommentCount, 10)) // 评论数量加入redis
+		}
 		// 记录插入redis
-		middleware.UpdateRedisComment(action_type, newComment, comCount)
+		middleware.UpdateRedisComment(action_type, newComment)
 		// 返回
 		c.JSON(http.StatusOK, CommentResponse{
 			Response: util.Success, //成功
@@ -60,8 +63,13 @@ func CommentAction(c *gin.Context) {
 			UserID:  usertoken.UserID,
 			VideoID: vID,
 		}
+		// 知道了视频的ID，先去查看redis里面是否存了它的评论数，若无则去查mysql数据库
+		if _, err := middleware.GetKey("ComCnt:" + video_id); err != nil {
+			video := dao.GetVideoByID(vID)                                                   // 去数据库查询 视频结构体
+			middleware.SetKey("ComCnt:"+video_id, strconv.FormatInt(video.CommentCount, 10)) // 评论数量加入redis
+		}
 		// 记录更新到redis
-		middleware.UpdateRedisComment(action_type, newComment, comCount)
+		middleware.UpdateRedisComment(action_type, newComment)
 		// 返回
 		c.JSON(http.StatusOK, CommentResponse{
 			Response: util.Success, //成功

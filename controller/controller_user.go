@@ -138,3 +138,8 @@ func UserInfo(c *gin.Context) {
 		User:     user,
 	})
 }
+
+// 更新用户的关注数和粉丝数
+func UpdateUserInfo() {
+	//
+}

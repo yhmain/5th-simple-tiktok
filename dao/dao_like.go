@@ -19,8 +19,8 @@ func SaveLikes(likes []model.Like, likeCount map[int64]int64) error {
 		if len(likes) > 0 { // 空切片不做处理
 			// 先插入数据到 tk_like表
 			result := db.Clauses(clause.OnConflict{
-				Columns:   []clause.Column{{Name: "like_id"}},                              // key colume
-				DoUpdates: clause.AssignmentColumns([]string{"uid", "vid", "is_favorite"}), // column needed to be updated
+				Columns:   []clause.Column{{Name: "like_id"}},                // key colume
+				DoUpdates: clause.AssignmentColumns([]string{"is_favorite"}), // column needed to be updated
 			}).Create(&likes)
 			if result.Error != nil {
 				return errors.New("回滚：更新点赞表")

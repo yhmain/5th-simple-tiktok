@@ -10,28 +10,42 @@ func initRouter(r *gin.Engine) {
 
 	// public directory is used to serve static resources
 	r.Static("/static", "./public")
+	// r.StaticFS("/static", http.Dir("./public"))
+
+	authRouter := r.Group("/douyin")
+	authRouter.Use(middleware.JWTAuth()) // 需要经过JWT鉴权
+	{
+		// basic apis
+		authRouter.GET("/user/", controller.UserInfo)
+		authRouter.POST("/publish/action/", controller.Publish)
+		authRouter.GET("/publish/list/", controller.PublishList)
+
+		// extra apis - I
+		authRouter.POST("/favorite/action/", controller.FavoriteAction)
+		authRouter.GET("/favorite/list/", controller.FavoriteList)
+		authRouter.POST("/comment/action/", controller.CommentAction)
+
+		// extra apis - II
+		authRouter.POST("/relation/action/", controller.RelationAction)
+		authRouter.GET("/relation/follow/list/", controller.FollowList)
+		authRouter.GET("/relation/follower/list/", controller.FollowerList)
+		authRouter.GET("/relation/friend/list/", controller.FriendList)
+		authRouter.GET("/message/chat/", controller.MessageChat)
+		authRouter.POST("/message/action/", controller.MessageAction)
+	}
 
 	apiRouter := r.Group("/douyin")
+	{
+		// basic apis
+		apiRouter.GET("/feed/", controller.Feed)
+		apiRouter.POST("/user/register/", controller.Register)
+		apiRouter.POST("/user/login/", controller.Login)
 
-	// basic apis
-	apiRouter.GET("/feed/", controller.Feed)
-	apiRouter.POST("/user/register/", controller.Register)
-	apiRouter.POST("/user/login/", controller.Login)
-	apiRouter.GET("/user/", middleware.JWTAuth(), controller.UserInfo)
-	apiRouter.POST("/publish/action/", middleware.JWTAuth(), controller.Publish)
-	apiRouter.GET("/publish/list/", middleware.JWTAuth(), controller.PublishList)
+		// extra apis - I
+		apiRouter.GET("/comment/list/", controller.CommentList)
 
-	// extra apis - I
-	apiRouter.POST("/favorite/action/", middleware.JWTAuth(), controller.FavoriteAction)
-	apiRouter.GET("/favorite/list/", middleware.JWTAuth(), controller.FavoriteList)
-	apiRouter.POST("/comment/action/", middleware.JWTAuth(), controller.CommentAction)
-	apiRouter.GET("/comment/list/", controller.CommentList)
+		//  extra apis - II
+		// ...
+	}
 
-	// // extra apis - II
-	// apiRouter.POST("/relation/action/", controller.RelationAction)
-	// apiRouter.GET("/relation/follow/list/", controller.FollowList)
-	// apiRouter.GET("/relation/follower/list/", controller.FollowerList)
-	// apiRouter.GET("/relation/friend/list/", controller.FriendList)
-	// apiRouter.GET("/message/chat/", controller.MessageChat)
-	// apiRouter.POST("/message/action/", controller.MessageAction)
 }

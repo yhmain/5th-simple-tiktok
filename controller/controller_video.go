@@ -79,7 +79,7 @@ func Feed(c *gin.Context) {
 			if token != "" {
 				_, claims, err := middleware.ParseToken(token)
 				if err != nil {
-					fmt.Println("Token解析出错: ", err)
+					fmt.Println("Token解析出错: ", err, "出错的Token是Feed里面：", token)
 					c.JSON(http.StatusOK, FeedResponse{
 						Response:  util.ParseTokenErr, //token解析失败
 						VideoList: []model.Video{},
@@ -88,13 +88,13 @@ func Feed(c *gin.Context) {
 					return
 				}
 				uid := claims.UserID // 得到了当前用户ID
-				fmt.Println(videos)
+				// fmt.Println(videos)
 				updateVideoInfo(uid, videos) // 更新点赞信息和评论数量信息
 			} else {
 				// 如果没有用户登录，则点赞状态都为false
 				for i := 0; i < len(videos); i++ {
 					videos[i].IsFavorite = false //首先默认是false
-					fmt.Println(videos[i])
+					// fmt.Println(videos[i])
 				}
 			}
 
@@ -110,11 +110,12 @@ func Feed(c *gin.Context) {
 // 投稿接口，用户发布视频，路由
 func Publish(c *gin.Context) {
 	usertoken := c.MustGet("usertoken").(middleware.UserToken) //经过jwt鉴权后解析出的usertoekn
-
+	fmt.Println("111")
 	// 获取视频流数据
 	file, err := c.FormFile("data")
 	if err != nil {
 		c.JSON(http.StatusOK, util.FileParseErr) //文件解析失败
+		fmt.Println("222")
 		return
 	}
 	fileExt := path.Ext(file.Filename)       // 获取文件后缀名，比如 .mp4  .jpg

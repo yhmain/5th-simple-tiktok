@@ -31,3 +31,9 @@ func GetUserByID(uid int64) model.User {
 	middleware.GetMySQLClient().Where("uid=?", uid).Find(&user)
 	return user
 }
+
+// 更新用户的关注数和粉丝数
+func UpdateUserFollow(uid string, data map[string]interface{}) error {
+	result := middleware.GetMySQLClient().Model(&model.User{}).Where("uid=?", uid).Updates(data)
+	return result.Error
+}

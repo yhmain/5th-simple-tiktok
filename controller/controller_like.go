@@ -3,18 +3,13 @@ package controller
 import (
 	"fmt"
 	"net/http"
-	"time"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/robfig/cron/v3"
 	"github.com/yhmain/5th-simple-tiktok/dao"
 	"github.com/yhmain/5th-simple-tiktok/middleware"
 	"github.com/yhmain/5th-simple-tiktok/util"
 )
-
-func init() {
-	JobSaveRedis() // 开启定时器任务
-}
 
 /*
 	关于赞的操作有点赞和取消点赞
@@ -29,9 +24,21 @@ func FavoriteAction(c *gin.Context) {
 	usertoken := c.MustGet("usertoken").(middleware.UserToken)
 	video_id := middleware.GetParamPostOrGet(c, "video_id")
 	action_type := c.Query("action_type")
-	redisKey := fmt.Sprintf("Fav:%d:%s", usertoken.UserID, video_id)   // 加上前缀Fav:，取用户id，作为redis的key
-	err := middleware.UpdateRedisLike(redisKey, video_id, action_type) // 更新Redis
-	if err != nil {                                                    // 赞操作失败
+	redisKey := fmt.Sprintf("Fav:%d:%s", usertoken.UserID, video_id) // 加上前缀Fav:，取用户id，作为redis的key
+	val, err := middleware.GetKey(redisKey)                          // 先获取当前 点赞的状态
+	// 什么情况不用更改状态？ Key命中且当前操作类型与value代表含义一样
+	if (err == nil && action_type == "1" && val == "1") || (err == nil && action_type == "2" && val == "0") {
+		c.JSON(http.StatusOK, util.FavActionErr)
+		return
+	}
+	redisLikeCnt := fmt.Sprintf("FavCnt:%s", video_id) // 视频赞数量的Key
+	if !middleware.ExistKey(redisLikeCnt) {
+		vID, _ := strconv.ParseInt(video_id, 10, 64)
+		video := dao.GetVideoByID(vID)                                              // 此处是查询数据库
+		middleware.SetKey(redisLikeCnt, strconv.FormatInt(video.FavoriteCount, 10)) // 设置key
+	}
+	err = middleware.UpdateRedisLike(redisKey, video_id, action_type) // 更新Redis
+	if err != nil {                                                   // 赞操作失败
 		fmt.Println(err)
 		c.JSON(http.StatusOK, util.FavActionErr)
 		return
@@ -42,38 +49,11 @@ func FavoriteAction(c *gin.Context) {
 	// SaveRedisToMySQL() // 此处是直接保存，另外一种是设置定时任务
 }
 
-// 定时任务：将Redis数据保存到MySQL
-func JobSaveRedis() {
-	// 启动点赞操作的定时任务
-	// 定时将Redis的数据保存到数据库
-	c := cron.New()                  // 这个对象用于管理定时任务
-	c.AddFunc("@every 10s", func() { // @every后加一个时间间隔，表示每隔多长时间触发一次 eg. 2s  1m2s 1h
-		fmt.Println(time.Now(), "Tick every 10 second: save redis data to mysql.")
-		SaveRedisToMySQL()
-	})
-	c.Start() // 启动定时循环
-}
-
-// 将Redis数据保存到MySQL
-func SaveRedisToMySQL() {
-	likes, likeCount := middleware.GetRedisLike()           // 调用redis解析里面的keys
-	if err := dao.SaveLikes(likes, likeCount); err != nil { // 赞数据插入到数据库
-		fmt.Println("批量更新点赞数据出错：", err)
-		return
-	}
-	// 接下来是 评论内容和评论数量，更新到数据库
-	commentAdd, commendDel, commentCnt := middleware.GetRedisComment()           // 调用redis解析里面的keys
-	if err := dao.SaveComments(commentAdd, commendDel, commentCnt); err != nil { // 评论数据插入到数据库
-		fmt.Println("批量更新评论数据出错：", err)
-		return
-	}
-}
-
 //用户喜欢列表函数，路由
 func FavoriteList(c *gin.Context) {
 	// 经过jwt中间件
 	usertoken := c.MustGet("usertoken").(middleware.UserToken)
-	// 查询之前，将Redis数据手段更新到Mysql
+	// 查询之前，将Redis数据手动更新到Mysql
 	SaveRedisToMySQL()
 	// 再查询MySQL数据
 	likes := dao.GetUserLike(usertoken.UserID) // 获取到了视频ID
