@@ -10,11 +10,37 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"github.com/yhmain/5th-simple-tiktok/model"
+	"github.com/yhmain/5th-simple-tiktok/util"
 )
 
-var ctx = context.Background()
-var redisDB *redis.Client    // 将redis的连接写成全局变量
-var keyTTL = time.Minute * 2 // 假设redis的key过期时间是2分钟
+var (
+	ctx            = context.Background()
+	redisDB        *redis.Client                   // 将redis的连接写成全局变量
+	keyTTL         = time.Minute * 3               // 假设redis的key过期时间是几分钟
+	timeSleep      = time.Millisecond * 300        // 假设业务暂停时间为300毫秒
+	defaultTimeout = time.Millisecond * 500        // 分布式锁的过期时间
+	dT             = defaultTimeout.Milliseconds() // 直接获取int64类型
+	retryInterval  = 10 * time.Millisecond         // 获取分布式锁的重试间隔
+)
+
+const (
+	lockCommand = `
+		if redis.call("GET", KEYS[1])==ARGV[1] then
+			redis.call("SET", KEYS[1], ARGV[1], "PX", ARGV[2])
+			return "OK"
+		else
+			return redis.call("SET", KEYS[1], ARGV[1], "NX", "PX", ARGV[2])
+		end
+	`
+	unlockCommand = `
+		-- 解铃还须系铃人
+		if redis.call("GET", KEYS[1])==ARGV[1] then
+			return redis.call("DEL", KEYS[1])
+		else
+			return 0
+		end
+	`
+)
 
 // redis存放的数据类型  Fav: 与 Com: 都是前缀，以作区分
 // 点赞状态->  	Key:  Fav:uid:vid			value: 1 或 0		会直接 Upset 到数据库，点赞表本身主键是uid:vid
@@ -23,6 +49,8 @@ var keyTTL = time.Minute * 2 // 假设redis的key过期时间是2分钟
 // 评论数量->	Key:  ComCnt:vid			value: 数量			会更新tk_video表的comment_count字段
 // 关注信息->	Key:  Fol:uaid:ubid			value :1 或 0		会直接 Upset 到数据库，关注表本身主键是uaid:ubid
 // 对于每个用户的关注/粉丝数量，有 Key: FolCnt:uid  field:"FollowCount"  field:"FollowerCount"，采取哈希结构
+// 关于mysql与redis数据一致性的问题：
+// 考虑采用 延迟双删策略  步骤：删除缓存；更新数据库；暂停业务；删除缓存
 
 func init() {
 	// init函数内进行初始化
@@ -75,15 +103,72 @@ func SetKey(redisKey, value string) (string, error) {
 	return redisDB.Set(ctx, redisKey, value, keyTTL).Result()
 }
 
+// 获取redis的哈希类型的值
+func HGetKey(redisKey, redisField string) (string, error) {
+	val, err := redisDB.HGet(ctx, redisKey, redisField).Result()
+	return val, err
+}
+
+// 尝试获取分布式锁：加锁
+func tryGetDistributedLock(redisKey, redisValue string) bool {
+	// 试图抢分布式锁，若抢到了就返回OK
+	luaLockScript := redis.NewScript(lockCommand)
+	resp, err := luaLockScript.Run(ctx, redisDB, []string{redisKey}, []string{redisValue, strconv.Itoa(int(dT))}).Result() //执行lua脚本
+	if err != nil || resp == nil {
+		return false
+	}
+	reply, ok := resp.(string) // 断言
+	return ok && reply == "OK"
+}
+
+// 若获取不到锁，则设置等待时间，超时则返回失败
+func GetDistributedLock(redisKey, redisValue string) bool {
+	ctxTimeout, cancelFunc := context.WithTimeout(context.Background(), time.Second*10) // 设置上下文超时时长
+	defer cancelFunc()                                                                  // 避免执行完之后，仍然等待超时时间过去
+	for {
+		select {
+		case <-ctxTimeout.Done():
+			// fmt.Println(redisKey, "抢锁失败了！", redisValue, "时间：", time.Now().Format("2006-01-02 15:04:05"))
+			return false
+		default:
+			flag := tryGetDistributedLock(redisKey, redisValue) // 尝试获取分布式锁
+			if flag {
+				// fmt.Println(redisKey, "抢到锁了！", redisValue, "时间：", time.Now().Format("2006-01-02 15:04:05"))
+				return true
+			}
+			time.Sleep(retryInterval) // 间隔重试
+		}
+	}
+}
+
+// 释放分布式锁
+func DelDistributedLock(redisKey, redisValue string) error {
+	luaDelDisKey := redis.NewScript(unlockCommand)
+	// 返回值为 删除的键的个数和出错信息
+	_, err := luaDelDisKey.Run(ctx, redisDB, []string{redisKey}, []string{redisValue}).Result() //执行lua脚本
+	if err != nil {
+		return err
+	}
+	// fmt.Println("释放了 Key: ", redisKey, "Value: ", redisValue, "n: ", n, time.Now().Format("2006-01-02 15:04:05"))
+	return nil
+}
+
 // 点赞 && 取消点赞 功能		key的过期时间设置为2min，0代表不会过期
 func UpdateRedisLike(likeKey, vID, acType string) error {
-	likeCntKey := fmt.Sprintf("FavCnt:%s", vID)
+	// 1. 给当前线程上的锁添加唯一标识
+	lockID := util.GenID()
+	// 2. 获取分布式锁
+	likeCntKey := fmt.Sprintf("FavCntDis:%s", vID) // eg: FavCntDis:xxxx，注：与赞数量的key不同
+	flag := GetDistributedLock(likeCntKey, fmt.Sprintf("%d", lockID))
+	if !flag {
+		return fmt.Errorf("分布式锁：%s抢占失败！", likeCntKey)
+	}
+	// 3. 若获取成功，则进一步操作
 	luaLikeScript := redis.NewScript(`
 		local acType = KEYS[1]
 		local likeKey = KEYS[2]
 		local likeCntKey = KEYS[3]
-		if (acType == "1")
-		then
+		if (acType == "1") then
 			-- 点赞操作
 			redis.call("SET", likeKey, 1, "EX", 120)		-- 状态变为1, 120表示120秒
 			redis.call("INCR", likeCntKey)					--赞数量+1
@@ -99,39 +184,75 @@ func UpdateRedisLike(likeKey, vID, acType string) error {
 		fmt.Println("点赞的lua脚本执行出现异常：", n, err)
 		return err
 	}
+	// 4. 释放分布式锁
+	if err = DelDistributedLock(likeCntKey, fmt.Sprintf("%d", lockID)); err != nil {
+		fmt.Println("释放分布式锁的lua脚本执行出现异常：", n, err)
+		return err
+	}
 	return nil
 }
 
 // 新增评论与删除评论  需要保证结构体必须 有评论ID和视频ID
-func UpdateRedisComment(acType string, comment model.Comment) {
-	// 需要两个key，分别代表评论信息(ComAdd:cid  与  ComDel:cid)和评论数量(ComCnt:vid)
-	commentStr, _ := json.Marshal(comment) // 结构体序列化
+func UpdateRedisComment(acType string, comment model.Comment) error {
+	// 1. 给当前线程上的锁添加唯一标识
+	lockID := util.GenID()
+	// 2. 获取分布式锁
+	commentCntKey := fmt.Sprintf("ComCntDis:%d", comment.Id) // eg: ComCntDis:xxxx
+	flag := GetDistributedLock(commentCntKey, fmt.Sprintf("%d", lockID))
+	if !flag {
+		return fmt.Errorf("分布式锁：%s抢占失败！", commentCntKey)
+	}
+	// 3. 需要两个key，分别代表评论信息(ComAdd:cid  与  ComDel:cid)和评论数量(ComCnt:vid)
+	com, _ := json.Marshal(comment) // 结构体序列化
 	redisAddCom := fmt.Sprintf("ComAdd:%d", comment.Id)
 	redisComCnt := fmt.Sprintf("ComCnt:%d", comment.VideoID)
-	if acType == "1" {
-		// 添加评论
-		redisDB.Set(ctx, redisAddCom, commentStr, keyTTL) // 加入到redsi中
-		redisDB.Incr(ctx, redisComCnt)                    // 评论数量加1
-		fmt.Println("发布评论成功!", "Redis key: ", redisAddCom)
-	} else {
-		// 删除评论
-		if ExistKey(redisAddCom) {
-			// 如果要删除的Key在  AddCom:cid 里面，则直接删除redis里面的Key
-			redisDB.Del(ctx, redisAddCom)
-			redisDB.Incr(ctx, redisComCnt) // 评论数量减1
-			fmt.Println("删除评论成功!", "Redis key: ", redisAddCom)
-		} else {
-			// 否则添加到   DelCom:cid里面  后面会去删除数据库的内容
-			redisDelCom := fmt.Sprintf("ComDel:%d", comment.Id)
-			redisDB.Set(ctx, redisDelCom, commentStr, keyTTL) // 加入到redsi中
-			redisDB.Decr(ctx, redisComCnt)                    // 评论数量减1
-			fmt.Println("删除评论成功!", "Redis key: ", redisDelCom)
-		}
+	redisDelCom := fmt.Sprintf("ComDel:%d", comment.Id)
+	luaCommentScript := redis.NewScript(`
+		local acType = KEYS[1]
+		local redisAddCom = KEYS[2]
+		local redisComCnt = KEYS[3]
+		local redisDelCom = KEYS[4]
+		local commentStr = ARGV[1]
+		if acType == "1" then
+			-- 添加评论
+			redis.call("SET", redisAddCom, commentStr, "EX", 120)
+			redis.call("INCR", redisComCnt)
+		else
+			-- 删除评论
+			if redis.call("EXISTS", redisAddCom)==1 then
+				-- 如果要删除的Key在  AddCom:cid 里面，则直接删除redis里面的Key
+				redis.call("DEL", redisAddCom)
+			else
+				-- 否则添加到   DelCom:cid里面  后面再去删除数据库的评论内容
+				redis.call("SET", redisDelCom, commentStr, "EX", 120)
+			end
+			redis.call("DECR", redisComCnt)	-- 评论数量减1
+		end
+	`)
+	n, err := luaCommentScript.Run(ctx, redisDB, []string{acType, redisAddCom, redisComCnt, redisDelCom}, []string{string(com)}).Result() //执行lua脚本
+	if err != nil {
+		fmt.Println("关注的lua脚本执行出现异常：", n, err)
+		return err
 	}
+	// 4. 释放分布式锁
+	if err = DelDistributedLock(commentCntKey, fmt.Sprintf("%d", lockID)); err != nil {
+		fmt.Println("释放分布式锁的lua脚本执行出现异常：", n, err)
+		return err
+	}
+	return nil
 }
 
 // 关注操作，关注与取关；传进来的两个用户模型必须携带用户ID、关注数、粉丝数
 func UpdateRedisFollow(acType string, usera, userb model.User) error {
+	// 1. 给当前线程上的锁添加唯一标识
+	lockID := util.GenID()
+	// 2. 获取分布式锁
+	followCntKey := fmt.Sprintf("FolCntDis:%d:%d", usera.Id, userb.Id)
+	flag := GetDistributedLock(followCntKey, fmt.Sprintf("%d", lockID))
+	if !flag {
+		return fmt.Errorf("分布式锁：%s抢占失败！", followCntKey)
+	}
+	// 3. 进一步操作
 	followKey := fmt.Sprintf("Fol:%d:%d", usera.Id, userb.Id)
 	useraKey := fmt.Sprintf("FolCnt:%d", usera.Id)
 	userbKey := fmt.Sprintf("FolCnt:%d", userb.Id)
@@ -146,8 +267,7 @@ func UpdateRedisFollow(acType string, usera, userb model.User) error {
 		local followKey = KEYS[2]
 		local useraKey = KEYS[3]
 		local userbKey = KEYS[4]
-		if (acType == "1")
-		then 
+		if (acType == "1") then 
 			-- 关注操作, a关注b了
 			redis.call("SET", followKey, 1, "EX", 120)		-- 状态变为1, 120表示120秒
 			redis.call("HINCRBY", useraKey, "FollowCount", 1)--a用户的关注数量+1
@@ -163,6 +283,11 @@ func UpdateRedisFollow(acType string, usera, userb model.User) error {
 	n, err := luaFollowScript.Run(ctx, redisDB, []string{acType, followKey, useraKey, userbKey}).Result() //执行lua脚本
 	if err != nil {
 		fmt.Println("关注的lua脚本执行出现异常：", n, err)
+		return err
+	}
+	// 4. 释放分布式锁
+	if err = DelDistributedLock(followCntKey, fmt.Sprintf("%d", lockID)); err != nil {
+		fmt.Println("释放分布式锁的lua脚本执行出现异常：", n, err)
 		return err
 	}
 	return nil

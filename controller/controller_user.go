@@ -1,7 +1,9 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/yhmain/5th-simple-tiktok/dao"
@@ -37,7 +39,7 @@ func Register(c *gin.Context) {
 		return
 	}
 	//判断该用户名是否已存在，为了确保用户名是唯一的
-	if user := dao.GetUserByName(username); user.Id != 0 {
+	if _, err := dao.GetUserByName(username); err == nil {
 		c.JSON(http.StatusOK, UserLoginResponse{
 			Response: util.NameAlreadyExistErr,
 			UserId:   -1,
@@ -89,7 +91,7 @@ func Login(c *gin.Context) {
 	username := c.Query("username")
 	password := c.Query("password")
 	//检测 用户名和密码是否正确
-	if user := dao.GetUserByNamePwd(username, password); user.Id != 0 {
+	if user, err := dao.GetUserByNamePwd(username, password); err != nil {
 		//校验成功后，生成用户鉴权token
 		token, err := middleware.GenToken(&middleware.UserToken{UserID: user.Id, Name: username, Password: password})
 		if err != nil {
@@ -124,14 +126,16 @@ func UserInfo(c *gin.Context) {
 	usertoken := c.MustGet("usertoken").(middleware.UserToken)
 
 	//按照id查找用户信息
-	user := dao.GetUserByID(usertoken.UserID)
-	if user.Id == 0 {
+	user, err := dao.GetUserByID(usertoken.UserID)
+	if err != nil {
 		c.JSON(http.StatusOK, UserResponse{
 			Response: util.WrongUserID,
-			User:     user,
+			User:     model.User{}, // 返回空
 		})
 		return
 	}
+	// 查询redis，更新登录用户的关注/粉丝数量
+	UpdateUserFollow(&user)
 	//此时代表成功！
 	c.JSON(http.StatusOK, UserResponse{
 		Response: util.Success,
@@ -140,6 +144,16 @@ func UserInfo(c *gin.Context) {
 }
 
 // 更新用户的关注数和粉丝数
-func UpdateUserInfo() {
-	//
+func UpdateUserFollow(user *model.User) {
+	redisKey := fmt.Sprintf("FolCnt:%d", user.Id)
+	// 查询redis里面是否存在关注数
+	if val, err := middleware.HGetKey(redisKey, "FollowCount"); err != nil { //  若redis里面有数据，则以之为准
+		cnt, _ := strconv.ParseInt(val, 10, 64)
+		user.FollowCount = cnt // 更新
+	}
+	// 查询redis里面是否存在粉丝数
+	if val, err := middleware.HGetKey(redisKey, "FollowCount"); err != nil { //  若redis里面有数据，则以之为准
+		cnt, _ := strconv.ParseInt(val, 10, 64)
+		user.FollowerCount = cnt // 更新
+	}
 }

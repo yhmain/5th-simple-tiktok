@@ -12,24 +12,24 @@ func InsertUser(user *model.User) error {
 }
 
 //查找用户名是否已存在（按照规定，用户名是唯一的）, nil空则表示不存在
-func GetUserByName(name string) model.User {
+func GetUserByName(name string) (model.User, error) {
 	var user model.User
-	middleware.GetMySQLClient().Where("user_name=?", name).Find(&user)
-	return user
+	result := middleware.GetMySQLClient().Where("user_name=?", name).First(&user)
+	return user, result.Error
 }
 
 //查找用户名、密码是否正确, nil空则表示不存在
-func GetUserByNamePwd(name, pwd string) model.User {
+func GetUserByNamePwd(name, pwd string) (model.User, error) {
 	var user model.User
-	middleware.GetMySQLClient().Where("user_name=? AND password=?", name, pwd).Find(&user)
-	return user
+	result := middleware.GetMySQLClient().Where("user_name=? AND password=?", name, pwd).First(&user)
+	return user, result.Error
 }
 
 //根据ID查找用户信息
-func GetUserByID(uid int64) model.User {
+func GetUserByID(uid int64) (model.User, error) {
 	var user model.User
-	middleware.GetMySQLClient().Where("uid=?", uid).Find(&user)
-	return user
+	result := middleware.GetMySQLClient().Where("uid=?", uid).First(&user)
+	return user, result.Error
 }
 
 // 更新用户的关注数和粉丝数

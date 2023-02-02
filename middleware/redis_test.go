@@ -2,11 +2,18 @@ package middleware
 
 import (
 	"fmt"
+	"strconv"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/yhmain/5th-simple-tiktok/model"
+)
+
+var (
+	goodsCount = 5
 )
 
 // 测试 获取Redis连接
@@ -14,6 +21,38 @@ func TestGetRedisClient(t *testing.T) { // 测试ping，获取redis连接
 	_, err := GetRedisClient()
 	var expectedResult error
 	assert.Equal(t, expectedResult, err)
+}
+
+// 模拟购买商品
+func BuyProduct(id int, wg *sync.WaitGroup) {
+	defer wg.Done()
+	GetDistributedLock("GOODS", fmt.Sprintf("%d", id))
+	if goodsCount == 0 {
+		fmt.Println(id, "商品卖完了！")
+		return
+	}
+	goodsCount -= 1
+	fmt.Println(id, "购买了商品，剩余商品数量：", goodsCount)
+	DelDistributedLock("GOODS", fmt.Sprintf("%d", id))
+}
+
+// 测试 获取分布式锁
+func TestGetDistributedLock(t *testing.T) {
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go BuyProduct(i, &wg)
+	}
+	// time.Sleep(30 * time.Second)
+	wg.Wait()
+}
+
+func TestDemo(t *testing.T) {
+	defaultTime := 3 * time.Minute
+	a := int(defaultTime.Milliseconds())
+	fmt.Println(strconv.Itoa(a))
+	fmt.Println(defaultTime)
+	fmt.Println(a)
 }
 
 // 测试解析redis的赞数据

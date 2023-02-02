@@ -54,6 +54,7 @@ https://juejin.cn/post/7024307688196538375 例子
 
 Redis批量模糊删除 Key  
 https://blog.csdn.net/qianyer/article/details/106383423   
+https://www.runoob.com/redis/redis-keys.html        Redis菜鸟教程
 
 https://blog.csdn.net/qq171563857/article/details/107406409  
 在缓存评论内容的时候只缓存不变的内容,比如评论ID,评论时间,评论内容  
@@ -61,3 +62,15 @@ https://blog.csdn.net/qq171563857/article/details/107406409
 
 MySQL和Redis数据一致性的解决思路
 https://cloud.tencent.com/developer/article/1917325  
+https://zhuanlan.zhihu.com/p/58536781 
+
+Redis实现分布式锁：  
+https://blog.csdn.net/weixin_46129192/article/details/126010250 
+
+Golang超时退出  
+https://geektutu.com/post/hpg-timeout-goroutine.html  
+https://blog.csdn.net/z772532526/article/details/128000133  
+https://www.cnblogs.com/just-do/p/15550505.html  Golang的Context  
+https://www.cnblogs.com/bigdataZJ/p/golang-timeout.html  
+
+

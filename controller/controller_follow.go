@@ -31,8 +31,8 @@ func RelationAction(c *gin.Context) {
 		c.JSON(http.StatusOK, util.FollowActionErr)
 		return
 	}
-	userA := dao.GetUserByID(usertoken.UserID)                    // 查询数据库
-	userB := dao.GetUserByID(ubID)                                // 查询数据库
+	userA, _ := dao.GetUserByID(usertoken.UserID)                 // 查询数据库
+	userB, _ := dao.GetUserByID(ubID)                             // 查询数据库
 	err = middleware.UpdateRedisFollow(action_type, userA, userB) // 更新redis
 	if err != nil {                                               // 关注操作失败
 		fmt.Println(err)
@@ -58,6 +58,10 @@ func FollowList(c *gin.Context) {
 			UserList: []model.User{},
 		})
 	}
+	// 查询redis，更新 用户的关注状态
+	for i := range users {
+		UpdateUserFollowStatus(usertoken.UserID, &users[i])
+	}
 	//返回关注列表和状态码
 	c.JSON(http.StatusOK, FollowListResponse{
 		Response: util.Success,
@@ -80,9 +84,26 @@ func FollowerList(c *gin.Context) {
 			UserList: []model.User{},
 		})
 	}
+	// 查询redis，更新 用户的关注状态
+	for i := range users {
+		UpdateUserFollowStatus(usertoken.UserID, &users[i])
+	}
 	//返回粉丝列表和状态码
 	c.JSON(http.StatusOK, FollowListResponse{
 		Response: util.Success,
 		UserList: users,
 	})
+}
+
+// 更新 关注列表或者粉丝列表的用户的关注状态
+func UpdateUserFollowStatus(userID int64, to_user *model.User) {
+	redisKey := fmt.Sprintf("Fol:%d:%d", userID, to_user.Id)
+	// 查询redis里面是否存在关注数
+	if val, err := middleware.GetKey(redisKey); err != nil { //  若redis里面有数据，则以之为准
+		if val == "1" {
+			to_user.IsFollow = true
+		} else {
+			to_user.IsFollow = false
+		}
+	}
 }
